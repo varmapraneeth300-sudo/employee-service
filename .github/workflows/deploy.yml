@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - ["first_feature"]
+      - "first_feature"
 
 jobs:
   build:
@@ -24,3 +24,20 @@ jobs:
 
       - name: Push Docker image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/my-app
+
+      - name: Setup SSH
+        run: |
+           mkdir -p ~/.ssh
+           # Inject private key from GitHub Secrets
+           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+           chmod 600 ~/.ssh/id_rsa
+           # Add EC2 to known hosts (avoid prompt)
+           ssh-keyscan -H ubuntu@100.53.134.144 >> ~/.ssh/known_hosts
+      - name: deploy on ec2
+        run: |
+          ssh ubuntu@100.53.134.144 << 'EOF'
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+          docker stop myapp || true
+          docker rm myapp || true
+          docker run -d -p 8080:8080 --name myapp ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+        EOF
